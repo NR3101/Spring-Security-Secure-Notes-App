@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: secure-notes
+  security:
+    user:
+      name: user
+      password: password
