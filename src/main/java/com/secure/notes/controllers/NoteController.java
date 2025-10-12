@@ -1,6 +1,6 @@
 package com.secure.notes.controllers;
 
-import com.secure.notes.dto.NoteRequest;
+import com.secure.notes.dtos.NoteRequest;
 import com.secure.notes.models.Note;
 import com.secure.notes.services.NoteService;
 import org.springframework.beans.factory.annotation.Autowired;

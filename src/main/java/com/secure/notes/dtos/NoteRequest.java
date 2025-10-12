@@ -1,4 +1,4 @@
-package com.secure.notes.dto;
+package com.secure.notes.dtos;
 
 import lombok.Data;
 
