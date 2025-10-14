@@ -5,16 +5,21 @@ import com.secure.notes.models.Role;
 import com.secure.notes.models.User;
 import com.secure.notes.repositories.RoleRepository;
 import com.secure.notes.repositories.UserRepository;
+import com.secure.notes.security.jwt.AuthEntryPointJwt;
+import com.secure.notes.security.jwt.AuthTokenFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 import java.time.LocalDate;
@@ -27,6 +32,14 @@ import java.time.LocalDate;
         jsr250Enabled = true // Enables @RolesAllowed
 )
 public class SecurityConfig {
+    @Autowired
+    private AuthEntryPointJwt unauthorizedHandler;
+
+    @Bean
+    public AuthTokenFilter authenticationJwtTokenFilter() {
+        return new AuthTokenFilter();
+    }
+
     // Security configuration for Basic Authentication
     @Bean
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -34,20 +47,30 @@ public class SecurityConfig {
         http.csrf(csrf ->
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         // Disable CSRF for auth endpoints
-                        .ignoringRequestMatchers("api/v1/auth/**"));
+                        .ignoringRequestMatchers("/api/v1/auth/**"));
         http.authorizeHttpRequests(requests
                 -> requests
                 .requestMatchers("/api/v1/csrf-token").permitAll()
+                .requestMatchers("/api/v1/auth/**").permitAll()
                 // URL based security(dont prefix role with "ROLE_" as Spring Security does that automatically)
-//                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated());
-        http.httpBasic(Customizer.withDefaults());
+
+        http.exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler));
+        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+//        http.httpBasic(Customizer.withDefaults());
+
         return http.build();
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 
     @Bean
