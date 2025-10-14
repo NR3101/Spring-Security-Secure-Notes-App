@@ -12,11 +12,10 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 import java.time.LocalDate;
 
@@ -31,15 +30,17 @@ public class SecurityConfig {
     // Security configuration for Basic Authentication
     @Bean
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        // Enable CSRF protection with CookieCsrfTokenRepository
+        http.csrf(csrf ->
+                csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        // Disable CSRF for auth endpoints
+                        .ignoringRequestMatchers("api/v1/auth/**"));
         http.authorizeHttpRequests(requests
                 -> requests
+                .requestMatchers("/api/v1/csrf-token").permitAll()
                 // URL based security(dont prefix role with "ROLE_" as Spring Security does that automatically)
 //                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated());
-        http.csrf(AbstractHttpConfigurer::disable);
-        // Adding custom filters
-        http.addFilterBefore(new CustomLoggingFilter(), UsernamePasswordAuthenticationFilter.class);
-        http.addFilterAfter(new RequestValidationFilter(), CustomLoggingFilter.class);
         http.httpBasic(Customizer.withDefaults());
         return http.build();
     }
