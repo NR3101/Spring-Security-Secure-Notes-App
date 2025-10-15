@@ -1,4 +1,4 @@
-package com.secure.notes.dtos;
+package com.secure.notes.security.request;
 
 import lombok.Getter;
 import lombok.Setter;
