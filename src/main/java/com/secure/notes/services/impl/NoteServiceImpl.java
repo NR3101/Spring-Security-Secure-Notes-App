@@ -1,5 +1,7 @@
 package com.secure.notes.services.impl;
 
+import com.secure.notes.exceptions.ResourceNotFoundException;
+import com.secure.notes.exceptions.UnauthorizedException;
 import com.secure.notes.models.Note;
 import com.secure.notes.repositories.NoteRepository;
 import com.secure.notes.services.NoteService;
@@ -24,9 +26,10 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     public Note updateNoteForUser(Long noteId, String username, String content) {
-        Note note = noteRepository.findById(noteId).orElseThrow(() -> new RuntimeException("Note not found"));
+        Note note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + noteId));
         if (!note.getOwnerUsername().equals(username)) {
-            throw new RuntimeException("Unauthorized");
+            throw new UnauthorizedException("You are not authorized to update this note");
         }
 
         note.setContent(content);
@@ -35,9 +38,10 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     public void deleteNoteForUser(Long noteId, String username) {
-        Note note = noteRepository.findById(noteId).orElseThrow(() -> new RuntimeException("Note not found"));
+        Note note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + noteId));
         if (!note.getOwnerUsername().equals(username)) {
-            throw new RuntimeException("Unauthorized");
+            throw new UnauthorizedException("You are not authorized to delete this note");
         }
 
         noteRepository.delete(note);

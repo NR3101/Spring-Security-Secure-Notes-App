@@ -1,5 +1,6 @@
 package com.secure.notes.controllers;
 
+import com.secure.notes.exceptions.ResourceNotFoundException;
 import com.secure.notes.models.AppRole;
 import com.secure.notes.models.Role;
 import com.secure.notes.models.User;
@@ -75,15 +76,15 @@ public class AuthController {
 
         if (strRoles == null || strRoles.isEmpty()) {
             role = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                    .orElseThrow(() -> new ResourceNotFoundException("Error: Role ROLE_USER is not found."));
         } else {
             String roleStr = strRoles.iterator().next();
             if (roleStr.equals("admin")) {
                 role = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        .orElseThrow(() -> new ResourceNotFoundException("Error: Role ROLE_ADMIN is not found."));
             } else {
                 role = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        .orElseThrow(() -> new ResourceNotFoundException("Error: Role ROLE_USER is not found."));
             }
 
             user.setAccountNonLocked(true);
