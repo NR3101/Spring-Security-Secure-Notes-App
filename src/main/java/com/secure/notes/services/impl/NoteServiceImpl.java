@@ -4,6 +4,7 @@ import com.secure.notes.exceptions.ResourceNotFoundException;
 import com.secure.notes.exceptions.UnauthorizedException;
 import com.secure.notes.models.Note;
 import com.secure.notes.repositories.NoteRepository;
+import com.secure.notes.services.AuditLogService;
 import com.secure.notes.services.NoteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,13 +16,18 @@ public class NoteServiceImpl implements NoteService {
     @Autowired
     private NoteRepository noteRepository;
 
+    @Autowired
+    private AuditLogService auditLogService;
+
     @Override
     public Note createNoteForUser(String username, String content) {
         Note note = Note.builder()
                 .ownerUsername(username)
                 .content(content)
                 .build();
-        return noteRepository.save(note);
+        Note savedNote = noteRepository.save(note);
+        auditLogService.logNoteCreation(username, savedNote);
+        return savedNote;
     }
 
     @Override
@@ -33,6 +39,7 @@ public class NoteServiceImpl implements NoteService {
         }
 
         note.setContent(content);
+        auditLogService.logNoteUpdate(username, note);
         return noteRepository.save(note);
     }
 
@@ -44,6 +51,7 @@ public class NoteServiceImpl implements NoteService {
             throw new UnauthorizedException("You are not authorized to delete this note");
         }
 
+        auditLogService.logNoteDeletion(username, noteId);
         noteRepository.delete(note);
     }
 
