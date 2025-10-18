@@ -3,20 +3,29 @@ package com.secure.notes.services.impl;
 import com.secure.notes.dtos.UserDTO;
 import com.secure.notes.exceptions.ResourceNotFoundException;
 import com.secure.notes.models.AppRole;
+import com.secure.notes.models.PasswordResetToken;
 import com.secure.notes.models.Role;
 import com.secure.notes.models.User;
+import com.secure.notes.repositories.PasswordResetTokenRepository;
 import com.secure.notes.repositories.RoleRepository;
 import com.secure.notes.repositories.UserRepository;
 import com.secure.notes.services.UserService;
+import com.secure.notes.utils.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    @Value("${frontend.url}")
+    String frontendUrl;
 
     @Autowired
     UserRepository userRepository;
@@ -26,6 +35,12 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     PasswordEncoder passwordEncoder;
+
+    @Autowired
+    EmailService emailService;
+
+    @Autowired
+    PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Override
     public void updateUserRole(Long userId, String roleName) {
@@ -117,5 +132,44 @@ public class UserServiceImpl implements UserService {
                 -> new ResourceNotFoundException("User not found with id: " + userId));
         user.setCredentialsNonExpired(!expire);
         userRepository.save(user);
+    }
+
+    @Override
+    public void generatePasswordResetToken(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+
+        String token = UUID.randomUUID().toString();
+        Instant expiryDate = Instant.now().plusSeconds(3600); // Token valid for 1 hour
+        PasswordResetToken passwordResetToken = new PasswordResetToken();
+        passwordResetToken.setToken(token);
+        passwordResetToken.setExpiryDate(expiryDate);
+        passwordResetToken.setUser(user);
+
+        passwordResetTokenRepository.save(passwordResetToken);
+
+        String resetLink = frontendUrl + "/reset-password?token=" + token;
+        emailService.sendPasswordResetEmail(email, resetLink);
+    }
+
+    @Override
+    public void resetPassword(String token, String newPassword) {
+        PasswordResetToken passwordResetToken = passwordResetTokenRepository.findByToken(token)
+                .orElseThrow(() -> new ResourceNotFoundException("Invalid password reset token"));
+
+        if(passwordResetToken.getUsed()) {
+            throw new ResourceNotFoundException("Password reset token has already been used");
+        }
+
+        if (passwordResetToken.getExpiryDate().isBefore(Instant.now())) {
+            throw new ResourceNotFoundException("Password reset token has expired");
+        }
+
+        User user = passwordResetToken.getUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        passwordResetToken.setUsed(true);
+        passwordResetTokenRepository.save(passwordResetToken);
     }
 }
