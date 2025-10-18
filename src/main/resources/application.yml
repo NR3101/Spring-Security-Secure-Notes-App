@@ -5,6 +5,21 @@ spring:
     user:
       name: user
       password: password
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: YOUR_GITHUB_CLIENT_ID
+            client-secret: YOUR_GITHUB_CLIENT_SECRET
+            scope:
+              - read:user
+              - user:email
+          google:
+            client-id: YOUR_GOOGLE_CLIENT_ID
+            client-secret: YOUR_GOOGLE_CLIENT_SECRET
+            scope:
+              - profile
+              - email
   datasource:
     url: jdbc:postgresql://ep-solitary-leaf-adt2cs1l-pooler.c-2.us-east-1.aws.neon.tech/secure-notes?sslmode=require&channel_binding=require
     username: neondb_owner
@@ -19,8 +34,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: realme1.310100@gmail.com
-    password: tyfnwbziurwnwwdp
+    username: YOUR_USERNAME
+    password: YOUR_PASSWORD
     properties:
       mail:
         smtp:

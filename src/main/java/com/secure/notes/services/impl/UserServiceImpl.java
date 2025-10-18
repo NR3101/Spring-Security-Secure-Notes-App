@@ -157,7 +157,7 @@ public class UserServiceImpl implements UserService {
         PasswordResetToken passwordResetToken = passwordResetTokenRepository.findByToken(token)
                 .orElseThrow(() -> new ResourceNotFoundException("Invalid password reset token"));
 
-        if(passwordResetToken.getUsed()) {
+        if (passwordResetToken.getUsed()) {
             throw new ResourceNotFoundException("Password reset token has already been used");
         }
 
@@ -171,5 +171,18 @@ public class UserServiceImpl implements UserService {
 
         passwordResetToken.setUsed(true);
         passwordResetTokenRepository.save(passwordResetToken);
+    }
+
+    @Override
+    public Optional<User> findByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
+    @Override
+    public User registerUser(User newUser) {
+        if (newUser.getPassword() != null) {
+            newUser.setPassword(passwordEncoder.encode(newUser.getPassword()));
+        }
+        return userRepository.save(newUser);
     }
 }

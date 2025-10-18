@@ -1,5 +1,6 @@
 package com.secure.notes.security;
 
+import com.secure.notes.config.OAuth2LoginSuccessHandler;
 import com.secure.notes.models.AppRole;
 import com.secure.notes.models.Role;
 import com.secure.notes.models.User;
@@ -51,7 +52,7 @@ public class SecurityConfig {
 
     // Security configuration for Basic Authentication
     @Bean
-    SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http, OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler) throws Exception {
         // Enable CSRF protection with CookieCsrfTokenRepository
         http
                 // Enable CORS with custom configuration
@@ -61,16 +62,20 @@ public class SecurityConfig {
                                 // Disable CSRF for auth endpoints
                                 .ignoringRequestMatchers("/api/v1/auth/public/**"));
         http.authorizeHttpRequests(requests
-                -> requests
-                .requestMatchers("/api/v1/csrf-token").permitAll()
-                .requestMatchers("/api/v1/auth/public/**").permitAll()
-                // URL based security(dont prefix role with "ROLE_" as Spring Security does that automatically)
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated());
+                        -> requests
+                        .requestMatchers("/api/v1/csrf-token").permitAll()
+                        .requestMatchers("/api/v1/auth/public/**").permitAll()
+                        .requestMatchers("/oauth2/**").permitAll()
+                        // URL based security(dont prefix role with "ROLE_" as Spring Security does that automatically)
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                .oauth2Login(oauth2
+                        -> {
+                    oauth2.successHandler(oAuth2LoginSuccessHandler);
+                });
 
         http.exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler));
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
-//        http.httpBasic(Customizer.withDefaults());
 
         return http.build();
     }
