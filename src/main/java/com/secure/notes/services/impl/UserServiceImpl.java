@@ -9,8 +9,10 @@ import com.secure.notes.models.User;
 import com.secure.notes.repositories.PasswordResetTokenRepository;
 import com.secure.notes.repositories.RoleRepository;
 import com.secure.notes.repositories.UserRepository;
+import com.secure.notes.services.TotpService;
 import com.secure.notes.services.UserService;
 import com.secure.notes.utils.EmailService;
+import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,6 +40,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     EmailService emailService;
+
+    @Autowired
+    TotpService totpService;
 
     @Autowired
     PasswordResetTokenRepository passwordResetTokenRepository;
@@ -184,5 +189,61 @@ public class UserServiceImpl implements UserService {
             newUser.setPassword(passwordEncoder.encode(newUser.getPassword()));
         }
         return userRepository.save(newUser);
+    }
+
+    @Override
+    public GoogleAuthenticatorKey generate2FASecret(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        GoogleAuthenticatorKey secretKey = totpService.generateSecretKey();
+        user.setTwoFactorSecret(secretKey.getKey());
+        userRepository.save(user);
+        return secretKey;
+    }
+
+    @Override
+    public boolean validate2FACode(Long userId, int code) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        String secret = user.getTwoFactorSecret();
+        return totpService.verifyCode(secret, code);
+    }
+
+    @Override
+    public void enable2FA(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        user.setTwoFactorEnabled(true);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void disable2FA(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        user.setTwoFactorEnabled(false);
+        user.setTwoFactorSecret(null);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void updateUserCredentials(Long userId, String newUsername, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        // Check if the new username is different and not already taken by another user
+        if (newUsername != null && !newUsername.trim().isEmpty() && !newUsername.equals(user.getUserName())) {
+            if (userRepository.existsByUserName(newUsername)) {
+                throw new IllegalArgumentException("Username is already taken");
+            }
+            user.setUserName(newUsername);
+        }
+
+        // Update password if provided
+        if (newPassword != null && !newPassword.trim().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(newPassword));
+        }
+
+        userRepository.save(user);
     }
 }

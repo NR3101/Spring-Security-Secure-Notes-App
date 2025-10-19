@@ -12,7 +12,11 @@ import com.secure.notes.security.request.SignupRequest;
 import com.secure.notes.security.response.LoginResponse;
 import com.secure.notes.security.response.MessageResponse;
 import com.secure.notes.security.response.UserInfoResponse;
+import com.secure.notes.security.services.UserDetailsImpl;
+import com.secure.notes.services.TotpService;
 import com.secure.notes.services.UserService;
+import com.secure.notes.utils.AuthUtil;
+import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -48,10 +52,16 @@ public class AuthController {
     UserService userService;
 
     @Autowired
+    TotpService totpService;
+
+    @Autowired
     UserRepository userRepository;
 
     @Autowired
     RoleRepository roleRepository;
+
+    @Autowired
+    AuthUtil authUtil;
 
     @Autowired
     PasswordEncoder encoder;
@@ -118,7 +128,7 @@ public class AuthController {
         // set the authentication
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
         String jwtToken = jwtUtils.generateTokenFromUsername(userDetails);
 
@@ -181,13 +191,87 @@ public class AuthController {
             userService.resetPassword(token, newPassword);
             return ResponseEntity.ok(new MessageResponse("Password has been reset successfully."));
         } catch (ResourceNotFoundException e) {
-            System.out.println(e.getMessage());;
+            System.out.println(e.getMessage());
+            ;
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new MessageResponse(e.getMessage()));
         } catch (Exception e) {
-            System.out.println(e.getMessage());;
+            System.out.println(e.getMessage());
+            ;
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("An error occurred while resetting the password."));
+        }
+    }
+
+    @PostMapping("/enable-2fa")
+    public ResponseEntity<?> enable2FA() {
+        Long userId = authUtil.getLoggedInUserId();
+        GoogleAuthenticatorKey secretKey = userService.generate2FASecret(userId);
+        String qrCodeUrl = totpService.getQRCodeURL(secretKey, authUtil.getLoggedInUserName());
+        return ResponseEntity.ok(qrCodeUrl);
+    }
+
+    @PostMapping("/disable-2fa")
+    public ResponseEntity<?> disable2FA() {
+        Long userId = authUtil.getLoggedInUserId();
+        userService.disable2FA(userId);
+        return ResponseEntity.ok(new MessageResponse("2FA has been disabled."));
+    }
+
+    @PostMapping("/verify-2fa")
+    public ResponseEntity<?> verify2FA(@RequestParam int code) {
+        Long userId = authUtil.getLoggedInUserId();
+        boolean isValid = userService.validate2FACode(userId, code);
+        if (isValid) {
+            userService.enable2FA(userId);
+            return ResponseEntity.ok("2FA has been verified.");
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid 2FA code.");
+        }
+    }
+
+    @GetMapping("/user/2fa-status")
+    public ResponseEntity<?> get2FAStatus() {
+        Long userId = authUtil.getLoggedInUserId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        boolean is2FAEnabled = user.isTwoFactorEnabled();
+        Map<String, Boolean> response = new HashMap<>();
+        response.put("twoFactorEnabled", is2FAEnabled);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/public/verify-2fa-login")
+    public ResponseEntity<?> verify2FALogin( @RequestParam int code,@RequestParam String jwtToken) {
+        String username = jwtUtils.getUserNameFromJwtToken(jwtToken);
+        User user = userService.findByUsername(username);
+        boolean isValid = userService.validate2FACode(user.getUserId(), code);
+        if (isValid) {
+            return ResponseEntity.ok("2FA login verified.");
+        } else {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid 2FA code.");
+        }
+    }
+
+    @PostMapping("/update-credentials")
+    public ResponseEntity<?> updateCredentials(@RequestParam String newUsername,
+                                                @RequestParam String newPassword) {
+        try {
+            Long userId = authUtil.getLoggedInUserId();
+            userService.updateUserCredentials(userId, newUsername, newPassword);
+            return ResponseEntity.ok(new MessageResponse("Credentials updated successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new MessageResponse(e.getMessage()));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new MessageResponse(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new MessageResponse("An error occurred while updating credentials."));
         }
     }
 }
